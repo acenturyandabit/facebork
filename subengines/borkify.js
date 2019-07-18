@@ -21,7 +21,7 @@ module.exports = {
                 api.sendMessage("Borkify quitting.", message.threadID);
                 return "quit";
             }
-            if (dontSend[message.messageID]) return;
+            if (message.senderID==api.getCurrentUserID())return;
             //borkify
             let result = message.body;
             for (let i = 0; i < result.length; i++) {

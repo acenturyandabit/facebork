@@ -32,8 +32,12 @@ function guid(n = 5) {
 var botTemplates = {};
 //load all the botTemplates
 var botTemplateList = [
-  "template",
-  "borkify"
+  "pinto",
+  "borkify",
+  "googler",
+  "status",
+  "affirmation",
+  "uwu"
 ]
 botTemplateList.forEach((v, i) => {
   botTemplates[v] = require(`./subengines/${v}.js`);
@@ -41,22 +45,22 @@ botTemplateList.forEach((v, i) => {
 var sessions = {};
 function beginHost(api) {
   //load past session data
-  try{
+  try {
     let sessionData = JSON.parse(fs.readFileSync("sessions.json") || "{}");
     for (let t in sessionData) {
       sessions[t] = {};
       for (let b in sessionData[t]) {
         sessions[t][b] = {
-          type: sessionData[t].type,
-          bot: new botTemplates[sessionData[t].type].bot()
+          type: sessionData[t][b].type,
+          bot: new botTemplates[sessionData[t][b].type].bot()
         }
-        sessions[t][b].bot.fromSaveData(sessionData[t].data);
+        sessions[t][b].bot.fromSaveData(sessionData[t][b].data);
       }
     }
-  }catch (e){
+  } catch (e) {
     //probably new start
   }
-  
+
   api.setOptions({
     selfListen: true
   });
@@ -68,23 +72,38 @@ function beginHost(api) {
     //send the message to all current listeners
     if (sessions[message.threadID]) {
       for (i in sessions[message.threadID]) {
-        if (sessions[message.threadID][i].bot.recieveMessage(message,api)=="quit"){
-          //delete this bot, if requested
-          delete sessions[message.threadID][i];
+        try {
+          if (sessions[message.threadID][i].bot.recieveMessage(message, api) == "quit") {
+            //delete this bot, if requested
+            delete sessions[message.threadID][i];
+          }
+        }
+        catch (e) {
+          console.log(e);
         }
       }
     }
     // check if we want to start a new bot
     for (let i in botTemplates) {
-      if (botTemplates[i].begin(message,api)) {
+      if (botTemplates[i].begin(message, api)) {
         if (!sessions[message.threadID]) {
           sessions[message.threadID] = {};
         }
         let uid = guid();
-        sessions[message.threadID][guid] = {
+        sessions[message.threadID][uid] = {
           type: i,
           bot: new botTemplates[i].bot()
         };
+        //run after create
+        try {
+          if (sessions[message.threadID][uid].bot.recieveMessage(message, api) == "quit") {
+            //delete this bot, if requested
+            delete sessions[message.threadID][uid];
+          }
+        }
+        catch (e) {
+          console.log(e);
+        }
       }
     }
   });
@@ -100,11 +119,17 @@ function saveToFile() {
     for (let i in sessions[t]) {
       sessionData[t][i] = {
         type: sessions[t][i].type,
-        data:sessions[t][i].toSaveData()
+        data: sessions[t][i].bot.toSaveData()
       }
     }
   }
   fs.writeFileSync("sessions.json", JSON.stringify(sessionData));
 }
 
-process.on("exit",saveToFile);
+process.on("SIGINT", () => {
+  try {
+    saveToFile();
+  } catch (e) {
+    console.log(e);
+  } process.exit();
+});
